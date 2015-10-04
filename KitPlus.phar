@@ -1,0 +1,497 @@
+<?php echo "PocketMine-MP plugin KitPlus v4.0.1\nThis file has been generated using DevTools v1.10.0 at Sat, 26 Sep 2015 19:34:09 -0800\n----------------\n";if(extension_loaded("phar")){$phar = new \Phar(__FILE__);foreach($phar->getMetadata() as $key => $value){echo ucfirst($key).": ".(is_array($value) ? implode(", ", $value):$value)."\n";}} __HALT_COMPILER(); ?>
+%  	             a:9:{s:4:"name";s:7:"KitPlus";s:7:"version";s:5:"4.0.1";s:4:"main";s:17:"AdvancedKits\Main";s:3:"api";a:1:{i:0;s:6:"1.12.0";}s:6:"depend";a:0:{}s:11:"description";s:22:"Kit plugin for MineBox";s:7:"authors";a:1:{i:0;s:10:"MrGamerPro";}s:7:"website";N;s:12:"creationDate";i:1443324849;}
+   plugin.ymlQ  ±cVQ  ÇVƒ¶         resources/config.yml6  ±cV6  2B4¶         resources/kits.ymlÉ  ±cVÉ  YéMž¶      +   src/AdvancedKits/economy/EconomyManager.phpà  ±cVà  æ×l¶      "   src/AdvancedKits/EventListener.php­	  ±cV­	  .rD¶         src/AdvancedKits/Kit.phpÊ  ±cVÊ  A;:¡¶      %   src/AdvancedKits/lang/LangManager.php  ±cV  AjP<¶         src/AdvancedKits/Main.php„  ±cV„  žô‡Ú¶      '   src/AdvancedKits/tasks/CoolDownTask.php»  ±cV»  Œ³"k¶      name: KitPlus
+main: AdvancedKits\Main
+version: 4.0.1
+api: [1.12.0]
+
+load: POSTWORLD
+author: MrGamerPro
+description: Kit plugin for MineBox
+commands:
+ kit:
+  description: Get a awesome kit!
+  usage: "/kit <kitName>"
+  aliases: [kits, mineboxkit]
+  permission: advancedkits.command
+ akreload:
+  descrpition: Reload Kits settings
+  usage: "/akreload"
+  permission: advancedkits.admin
+permissions:
+ advancedkits.command:
+  description: "Allows the user to run /kit command"
+  default: true
+ advancedkits.admin:
+  description: "Allows to manage admin features"
+  default: op---
+# Users are able to get only one kit per life
+one-kit-per-life: true
+
+# Users are able to get a kit if they log out event if they did not die (only works if one-kit-per-life: true)
+reset-on-logout: true
+
+# Use built in permission system even if using PurePerms
+force-builtin-permissions: false
+...---
+basicpvp:
+  items:
+  - "272:0:1"
+  - "260:0:5"
+  helmet: 298
+  chestplate: 299
+  leggings: 300
+  boots: 301
+  money: 20
+#Use economy or massive economy for the money feature to work!
+basicbuilder:
+  items:
+  - "4:0:25"
+  - "275:0:1"
+  - "297:0:3"
+  chestplate: 299
+  money: 20
+  cooldown:
+    minutes: 2
+  users:
+  - "luca28pet"
+  - "dioconsole"
+...<?php
+
+namespace AdvancedKits\economy;
+
+use AdvancedKits\Main;
+use pocketmine\Player;
+
+class EconomyManager{
+
+    private $plugin;
+    private $economy = null;
+    private $api;
+
+    public function __construct(Main $plugin){
+        $this->plugin = $plugin;
+        foreach(["EconomyAPI", "PocketMoney", "MassiveEconomy"] as $plugin){
+            if(($p = $this->plugin->getServer()->getPluginManager()->getPlugin($plugin)) !== null){
+                $this->economy = $plugin;
+                $this->api = $p;
+                break;
+            }
+        }
+    }
+
+    public function grantKit(Player $player, $money){
+        if($this->economy === null){
+            return false;
+        }
+        switch($this->economy){
+            case "EconomyAPI":
+                if($this->api->reduceMoney($player, $money) === 1){
+                    return true;
+                }
+            break;
+            case "PocketMoney":
+                if($this->api->getMoney($player->getName()) < $money){
+                    return false;
+                }
+                if($this->api->setMoney($player->getName(), $this->api->getMoney($player->getName()) - $money)){
+                    return true;
+                }
+            break;
+            case "MassiveEconomy":
+                if($this->api->takeMoney($player->getName(), $money) === 2){
+                    return true;
+                }
+            break;
+        }
+        return false;
+    }
+
+}<?php
+
+namespace AdvancedKits;
+
+use pocketmine\block\Block;
+use pocketmine\event\block\SignChangeEvent;
+use pocketmine\event\Listener;
+use pocketmine\event\player\PlayerDeathEvent;
+use pocketmine\event\player\PlayerInteractEvent;
+use pocketmine\event\player\PlayerQuitEvent;
+use pocketmine\tile\Sign;
+use pocketmine\utils\TextFormat;
+
+class EventListener implements Listener{
+
+    /**@var Main*/
+    private $ak;
+
+    public function __construct(Main $ak){
+        $this->ak = $ak;
+    }
+
+    public function onSign(PlayerInteractEvent $event){
+        $id = $event->getBlock()->getId();
+        if($id === Block::SIGN_POST or $id === Block::WALL_SIGN){
+            $tile = $event->getPlayer()->getLevel()->getTile($event->getBlock());
+            if($tile instanceof Sign){
+                $text = $tile->getText();
+                if(strtolower(TextFormat::clean($text[0])) === "[advancedkits]"){
+                    $event->setCancelled();
+                    if(empty($text[1])){
+                        $event->getPlayer()->sendMessage($this->ak->langManager->getTranslation("no-sign-on-kit"));
+                        return;
+                    }
+                    $kit = $this->ak->getKit($text[1]);
+                    if($kit === null){
+                        $event->getPlayer()->sendMessage($this->ak->langManager->getTranslation("no-kit", $text[1]));
+                        return;
+                    }
+                    $kit->handleRequest($event->getPlayer());
+                }
+            }
+        }
+    }
+
+    public function onSignChange(SignChangeEvent $event){
+        if(strtolower(TextFormat::clean($event->getLine(0))) === "[advancedkits]" and !$event->getPlayer()->hasPermission("advancedkits.admin")){
+            $event->getPlayer()->sendMessage($this->ak->langManager->getTranslation("no-perm-sign"));
+            $event->setCancelled();
+        }
+    }
+
+    public function onDeath(PlayerDeathEvent $event){
+        if(isset($this->ak->hasKit[strtolower($event->getEntity()->getName())])){
+            unset($this->ak->hasKit[strtolower($event->getEntity()->getName())]);
+        }
+    }
+
+    public function onLogOut(PlayerQuitEvent $event){
+        if($this->ak->getConfig()->get("reset-on-logout") and isset($this->ak->hasKit[strtolower($event->getPlayer()->getName())])){
+            unset($this->ak->hasKit[strtolower($event->getPlayer()->getName())]);
+        }
+    }
+
+}<?php
+
+namespace AdvancedKits;
+
+use pocketmine\command\ConsoleCommandSender;
+use pocketmine\item\Item;
+use pocketmine\Player;
+
+class Kit{
+
+    private $ak;
+    private $data;
+    private $name;
+    private $coolDowns = [];
+
+    public function __construct(Main $ak, array $data, $name){
+        $this->ak = $ak;
+        $this->data = $data;
+        $this->name = $name;
+        if(file_exists($this->ak->getDataFolder()."cooldowns/".strtolower($this->name).".sl")){
+            $this->coolDowns = unserialize(file_get_contents($this->ak->getDataFolder()."cooldowns/".strtolower($this->name).".sl"));
+        }
+    }
+
+    public function handleRequest(Player $player){
+        if($this->testPermission($player)){
+            if(!isset($this->coolDowns[strtolower($player->getName())])){
+                if(!($this->ak->getConfig()->get("one-kit-per-life") and isset($this->ak->hasKit[strtolower($player->getName())]))){
+                    if($this->isPaid()){
+                        if($this->ak->economy->grantKit($player, $this->getCost())){
+                            $this->addTo($player);
+                            $player->sendMessage($this->ak->langManager->getTranslation("sel-kit", $this->name));
+                        }else{
+                            $player->sendMessage($this->ak->langManager->getTranslation("cant-afford", $this->name));
+                        }
+                    }else{
+                        $this->addTo($player);
+                        $player->sendMessage($this->ak->langManager->getTranslation("sel-kit", $this->name));
+                    }
+                }else{
+                    $player->sendMessage($this->ak->langManager->getTranslation("one-per-life"));
+                }
+            }else{
+                $player->sendMessage($this->ak->langManager->getTranslation("cooldown1", $this->name));
+                $player->sendMessage($this->ak->langManager->getTranslation("cooldown2", $this->getCoolDownLeft($player)));
+            }
+        }else{
+            $player->sendMessage($this->ak->langManager->getTranslation("no-perm", $this->name));
+        }
+    }
+
+    private function addTo(Player $player){
+        $items = $this->getItems();
+        $inv = $player->getInventory();
+        foreach($items as $type => $item){
+            if((int) $type === $type) $inv->addItem($item);
+            elseif($type === "helmet")  $inv->setHelmet($item);
+            elseif($type === "chestplate") $inv->setChestplate($item);
+            elseif($type === "leggings") $inv->setLeggings($item);
+            elseif($type === "boots") $inv->setBoots($item);
+        }
+        if(isset($this->data["commands"]) and is_array($this->data["commands"])){
+            foreach($this->data["commands"] as $cmd){
+                $this->ak->getServer()->dispatchCommand(new ConsoleCommandSender(), str_replace("{player}", $player->getName(), $cmd));
+            }
+        }
+        if(($cd = $this->getCoolDownMinutes()) > 0){
+            $this->coolDowns[strtolower($player->getName())] = $cd;
+        }
+        $this->ak->hasKit[strtolower($player->getName())] = true;
+    }
+
+    /**
+     * @return Item[]
+     */
+    private function getItems(){
+        $items = [];
+        foreach($this->data["items"] as $itemString){
+            $itemData = array_map("intval", explode(":", $itemString));
+            $items[] = Item::get($itemData[0], $itemData[1], $itemData[2]);
+        }
+        foreach(["helmet", "chestplate", "leggings", "boots"] as $armor){
+            if(isset($this->data[$armor])){
+                $armorItem = Item::get((int) $this->data[$armor]);
+                $items[$armor] = $armorItem;
+            }
+        }
+        return $items;
+    }
+
+    private function isPaid(){
+        return isset($this->data["money"]) and $this->data["money"] !== 0;
+    }
+
+    //Call isPaid() before !!!
+    private function getCost(){
+        return (int) $this->data["money"];
+    }
+
+    private function getCoolDownMinutes(){
+        $min = 0;
+        if(isset($this->data["cooldown"]["minutes"])){
+            $min += (int) $this->data["cooldown"]["minutes"];
+        }
+        if(isset($this->data["cooldown"]["hours"])){
+            $min += (int) $this->data["cooldown"]["hours"] * 60;
+        }
+        return $min;
+    }
+
+    private function getCoolDownLeft(Player $player){
+        if(($minutes = $this->coolDowns[strtolower($player->getName())]) < 60){
+            return $this->ak->langManager->getTranslation("cooldown-format1", $minutes);
+        }
+        if(($modulo = $minutes % 60) !== 0){
+            return $this->ak->langManager->getTranslation("cooldown-format2", floor($minutes / 60), $modulo);
+        }
+        return $this->ak->langManager->getTranslation("cooldown-format3", $minutes / 60);
+    }
+
+    public function processCoolDown(){
+        foreach($this->coolDowns as $player => $min){
+            $this->coolDowns[$player] -= 1;
+            if($this->coolDowns[$player] <= 0){
+                unset($this->coolDowns[$player]);
+            }
+        }
+    }
+
+    private function testPermission(Player $player){
+        return $this->ak->permManager ? $player->hasPermission("advancedkits.".strtolower($this->name)) : (
+            (isset($this->data["users"]) ? in_array(strtolower($player->getName()), $this->data["users"]) : true)
+            and
+            (isset($this->data["worlds"]) ? in_array(strtolower($player->getLevel()->getName()), $this->data["worlds"]) : true)
+        );
+    }
+
+    public function save(){
+        if(count($this->coolDowns) > 0){
+            file_put_contents($this->ak->getDataFolder()."cooldowns/".strtolower($this->name).".sl", serialize($this->coolDowns));
+        }
+    }
+
+}<?php
+
+namespace AdvancedKits\lang;
+
+use AdvancedKits\Main;
+use pocketmine\utils\Config;
+
+class LangManager{
+
+    const LANG_VERSION = 0;
+
+    private $ak;
+    private $defaults;
+    private $data;
+
+    public function __construct(Main $ak){
+        $this->ak = $ak;
+        $this->defaults = [
+            "lang-version" => 0,
+            "in-game" => "Please run this command in game",
+            "av-kits" => "Available kits: {%0}",
+            "no-kit" => "Kit {%0} does not exist",
+            "reload" => "Reloaded kits settings",
+            "sel-kit" => "Selected kit: {%0}",
+            "cant-afford" => "You cannot afford kit: {%0}",
+            "one-per-life" => "You can only get one kit per life",
+            "cooldown1" => "Kit {%0} is in coolDown at the moment",
+            "cooldown2" => "You will be able to get it in {%0}",
+            "no-perm" => "You haven't the permission to use kit {%0}",
+            "cooldown-format1" => "{%0} minutes",
+            "cooldown-format2" => "{%0} hours and {%1} minutes",
+            "cooldown-format3" => "{%0} hours",
+            "no-sign-on-kit" => "On this sign, the kit is not specified",
+            "no-perm-sign" => "You don't have permission to create a sign kit"
+        ];
+        $this->data = new Config($this->ak->getDataFolder()."lang.properties", Config::PROPERTIES, $this->defaults);
+        if($this->data->get("lang-version") != self::LANG_VERSION){
+            $this->ak->getLogger()->alert("Translation file is outdated. Please delete your lang.properties and restart your server to create an updated file");
+        }
+    }
+
+    public function getTranslation($dataKey, ...$args){
+        $str = $this->data->get($dataKey, $this->defaults[$dataKey]);
+        foreach($args as $key => $arg){
+            $str = str_replace("{%".$key."}", $arg, $str);
+        }
+        return $str;
+    }
+
+}<?php
+
+namespace AdvancedKits;
+
+use AdvancedKits\economy\EconomyManager;
+use AdvancedKits\lang\LangManager;
+use AdvancedKits\tasks\CoolDownTask;
+use pocketmine\command\Command;
+use pocketmine\command\CommandSender;
+use pocketmine\Player;
+use pocketmine\plugin\PluginBase;
+
+class Main extends PluginBase{
+
+    /**@var kit[]*/
+    public $kits;
+    public $hasKit = [];
+    /**@var EconomyManager*/
+    public $economy;
+    public $permManager = false;
+    /**@var LangManager*/
+    public $langManager;
+
+    public function onEnable(){
+        @mkdir($this->getDataFolder()."cooldowns/");
+        $this->saveDefaultConfig();
+        $this->loadKits();
+        $this->economy = new EconomyManager($this);
+        $this->langManager = new LangManager($this);
+        if($this->getServer()->getPluginManager()->getPlugin("PurePerms") !== null and !$this->getConfig()->get("force-builtin-permissions")){
+            $this->permManager = true;
+        }
+        $this->getServer()->getScheduler()->scheduleDelayedRepeatingTask(new CoolDownTask($this), 1200, 1200);
+        $this->getServer()->getPluginManager()->registerEvents(new EventListener($this), $this);
+    }
+
+    public function onDisable(){
+        foreach($this->kits as $kit){
+            $kit->save();
+        }
+    }
+
+    public function onCommand(CommandSender $sender, Command $command, $label, array $args){
+        switch(strtolower($command->getName())){
+            case "kit":
+                if(!($sender instanceof Player)){
+                    $sender->sendMessage($this->langManager->getTranslation("in-game"));
+                    return true;
+                }
+                if(!isset($args[0])){
+                    $sender->sendMessage($this->langManager->getTranslation("av-kits", implode(", ", array_keys($this->kits))));
+                    return true;
+                }
+                $kit = $this->getKit($args[0]);
+                if($kit === null){
+                    $sender->sendMessage($this->langManager->getTranslation("no-kit", $args[0]));
+                    return true;
+                }
+                $kit->handleRequest($sender);
+                return true;
+            break;
+            case "akreload":
+                foreach($this->kits as $kit){
+                    $kit->save();
+                }
+                $this->loadKits();
+                $sender->sendMessage($this->langManager->getTranslation("reload"));
+                return true;
+            break;
+        }
+        return true;
+    }
+
+    private function loadKits(){
+        $this->saveResource("kits.yml");
+        $kitsData = yaml_parse_file($this->getDataFolder()."kits.yml");
+        $this->fixConfig($kitsData);
+        foreach($kitsData as $kitName => $kitData){
+            $this->kits[$kitName] = new Kit($this, $kitData, $kitName);
+        }
+    }
+
+    private function fixConfig(&$config){
+        foreach($config as $name => $kit){
+            if(isset($kit["users"])){
+                $users = array_map("strtolower", $kit["users"]);
+                $config[$name]["users"] = $users;
+            }
+            if(isset($kit["worlds"])){
+                $worlds = array_map("strtolower", $kit["worlds"]);
+                $config[$name]["worlds"] = $worlds;
+            }
+        }
+    }
+
+    /**
+     * @param $kit
+     * @return Kit|null
+     */
+    public function getKit($kit){
+        /**@var Kit[] $lowerKeys*/
+        $lowerKeys = array_change_key_case($this->kits, CASE_LOWER);
+        if(isset($lowerKeys[strtolower($kit)])){
+            return $lowerKeys[strtolower($kit)];
+        }
+        return null;
+    }
+
+}<?php
+
+namespace AdvancedKits\tasks;
+
+use AdvancedKits\Main;
+use pocketmine\scheduler\PluginTask;
+
+class CoolDownTask extends PluginTask{
+
+    private $plugin;
+
+    public function __construct(Main $plugin){
+        parent::__construct($plugin);
+        $this->plugin = $plugin;
+    }
+
+    public function onRun($tick){
+        foreach($this->plugin->kits as $kit){
+            $kit->processCoolDown();
+        }
+    }
+
+};±œ~
+ëb°SÊÊìü¼P   GBMB
