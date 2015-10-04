@@ -1,0 +1,25 @@
+---
+basicpvp:
+  items:
+  - "272:0:1"
+  - "260:0:5"
+  helmet: 298
+  chestplate: 299
+  leggings: 300
+  boots: 301
+  commands:
+  - "sp {player} &aYou selected the &eKit &bBasic PvP!"
+  worlds:
+  - "kitpvp"
+basicbuilder:
+  items:
+  - "4:0:25"
+  - "275:0:1"
+  - "297:0:3"
+  chestplate: 299
+  commands:
+  - "sp {player} You got the kit basicpvp !"
+  users:
+  - "luca28pet"
+  - "dioconsole"
+...
