@@ -1,25 +1,20 @@
----
-basicpvp:
-  items:
-  - "272:0:1"
-  - "260:0:5"
-  helmet: 298
-  chestplate: 299
-  leggings: 300
-  boots: 301
-  commands:
-  - "sp {player} &aYou selected the &eKit &bBasic PvP!"
-  worlds:
-  - "kitpvp"
-basicbuilder:
-  items:
-  - "4:0:25"
-  - "275:0:1"
-  - "297:0:3"
-  chestplate: 299
-  commands:
-  - "sp {player} You got the kit basicpvp !"
-  users:
-  - "luca28pet"
-  - "dioconsole"
+#You can add as many items as you want. Remember that the name of kits must not have spaces and should be lowercase ("basicpvp" is ok. NOT "Basic PvP").
+#The format of the items is:
+#- "id:meta:count"
+#(If you don't know what meta is just leave it 0 (zero))
+#If you want that users have to pay to get a kit, add the "money" parameter.
+#If you want to add armor just use one of these parameters: helmet, chestplate, leggings or boots with the ID of the item you want in the matching armor slot.
+# -
+#Cooldown is the time limit of the kit, you can specify it in hours or minutes (or both like in the example above). Cooldown is saved at server restart in cooldowns.sl file.
+# -
+#You can also specify the commands that need to be ran when a user get a kit. In the command string, {player} will be replaced with issuer name.
+#If you don't want any command to be executed, delete commands parameter
+free:
+ items:
+ - "268:0:1"
+ - "354:0:5"
+ helmet: 299
+ boots: 301
+ commands:
+ - "sp {player} &8You selected the &eKit &aFREE&b!"
 ...
